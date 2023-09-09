@@ -1,6 +1,10 @@
 const std = @import("std");
 const ziglua = @import("ziglua");
 
+const yaml = @cImport({
+    @cInclude("libfyaml.h");
+});
+
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
@@ -21,6 +25,8 @@ pub fn main() !void {
     lua.openLibs();
 
     lua.doString("print('Hello from Lua!')") catch unreachable;
+
+    try stdout.print("Yaml version {s}\n", .{yaml.fy_library_version()});
 }
 
 test "simple test" {
