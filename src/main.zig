@@ -24,7 +24,30 @@ pub fn main() !void {
     // Open the Lua standard libraries
     lua.openLibs();
 
-    lua.doString("print('Hello from Lua!')") catch unreachable;
+    // Run some lua code
+    const lua_code =
+        \\function eval_script()
+        \\    return 42, 2
+        \\end
+    ;
+    lua.doString(lua_code) catch unreachable;
+    const stack_size = lua.getTop();
+    const lua_type = try lua.getGlobal("eval_script");
+    if (lua_type == ziglua.LuaType.function) {
+        try lua.protectedCall(0, ziglua.mult_return, 0);
+
+        // Get each of the returned values
+        const num_returns = lua.getTop() - stack_size;
+        try stdout.print("Number of returned values {d}\n",
+            .{ num_returns });
+        for (0..@intCast(num_returns)) |_| {
+            if (lua.isInteger(-1)) {
+                const result = try lua.toInteger(-1);
+                try stdout.print("Lua returned {d}\n", .{ result });
+                lua.pop(1);
+            }
+        }
+    }
 
     try stdout.print("Yaml version {s}\n", .{yaml.fy_library_version()});
 }
