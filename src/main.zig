@@ -13,19 +13,11 @@ const ScriptEngine = struct {
 
     pub fn eval(self: *ScriptEngine, str: []const u8) !void {
         // Form a function
-        var lua_function = std.ArrayList(u8).init(self.allocator);
-        defer lua_function.deinit();
-        var function_writer = lua_function.writer();
-        try function_writer.print("function eval_script()\n", .{});
-        var lines = std.mem.split(u8, str, "\n");
-        while (lines.next()) |line| {
-            try function_writer.print("    {s}\n", .{line});
-        }
-        try function_writer.print("end\n", .{});
-        try lua_function.append(0);
+        const lua_function = try std.fmt.allocPrintZ(self.allocator, "function eval_script()\n{s}\nend", .{str});
+        defer self.allocator.free(lua_function);
 
         // Compile the function
-        try self.lua.doString(@ptrCast(lua_function.items));
+        try self.lua.doString(lua_function);
         const stack_size = self.lua.getTop();
         const lua_type = try self.lua.getGlobal("eval_script");
         if (lua_type == ziglua.LuaType.function) {
