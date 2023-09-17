@@ -3,6 +3,7 @@ const ziglua = @import("ziglua");
 
 const yaml = @cImport({
     @cInclude("libfyaml.h");
+    @cInclude("stdio.h");
 });
 
 const Allocator = std.mem.Allocator;
@@ -84,15 +85,28 @@ const ScriptEngine = struct {
 
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    // std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
     var stdout = std.io.getStdOut().writer();
 
     try stdout.print("Run `zig build test` to run the tests.\n", .{});
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
     defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    try stdout.print("Yaml version {s}\n", .{yaml.fy_library_version()});
+    try stdout.print("Args: {s}\n", .{args});
+
+    if (args.len > 1) {
+        const fyd = yaml.fy_document_build_from_file(null, args[1]);
+        const rc = yaml.fy_emit_document_to_fp(fyd, yaml.FYECF_DEFAULT | yaml.FYECF_SORT_KEYS, yaml.stdout);
+        _ = rc;
+    }
+
 
     // Run some lua code
     var script_engine = try ScriptEngine.init(allocator);
@@ -101,8 +115,6 @@ pub fn main() !void {
     try script_engine.eval(lua_code);
     try script_engine.eval("return {a = 2}");
     try script_engine.eval("return true, {42, 2}, 'world'");
-
-    try stdout.print("Yaml version {s}\n", .{yaml.fy_library_version()});
 }
 
 test "simple test" {
