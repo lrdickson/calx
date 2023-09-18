@@ -1,12 +1,6 @@
 const std = @import("std");
 const ziglua = @import("ziglua");
-
-const c = @cImport({
-    @cInclude("errno.h");
-    @cInclude("toml.h");
-    @cInclude("stdio.h");
-    @cInclude("string.h");
-});
+const toml = @import("toml.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -113,16 +107,14 @@ pub fn main() !void {
         try contents.append(0);
 
         // Parse the file
-        var errbuf: [200]u8 = .{};
-        const doc = c.toml_parse(contents.items.ptr, &errbuf, errbuf.len) orelse {
-            std.debug.print("Cannot parse {s}: {s}", .{args[1], errbuf});
-            std.os.exit(1);
-        };
-        defer c.toml_free(doc);
+        var errbuf: [200:0]u8 = .{};
+        var doc = try toml.Table.toml_parse(
+            @ptrCast(contents.items.ptr), &errbuf, errbuf.len);
+        defer doc.deinit();
 
         // Walk the toml
-        var index: c_int = 0;
-        while (c.toml_key_in(doc, index)) |key| {
+        var index: i32 = 0;
+        while (doc.key_in(index)) |key| {
             try stdout.print("Key {d}: {s}\n", .{index, key});
             index = index + 1;
         }
