@@ -34,46 +34,13 @@ pub fn build(b: *std.Build) void {
 
     // Add libfyaml
     exe.linkLibC();
-    const libfyaml_dir = "lib/libfyaml";
-    exe.addIncludePath(.{ .path = libfyaml_dir ++ "/src/lib" });
-    exe.addIncludePath(.{ .path = libfyaml_dir ++ "/src/util" });
-    exe.addIncludePath(.{ .path = libfyaml_dir ++ "/src/xxhash" });
-    exe.addIncludePath(.{ .path = libfyaml_dir ++ "/include" });
-    const libfyaml_cflags = [_][]const u8{
-        "-fPIC",
-        "-D_GNU_SOURCE",
-        "-DVERSION=\"0.5.7.34\"",
+    const tomlc99_dir = "lib/tomlc99/";
+    exe.addIncludePath(.{ .path = tomlc99_dir });
+    const tomlc99_cflags = [_][]const u8{
+        "-std=c99",
     };
-    const libfyaml_c_files = [_][]const u8{
-        "src/lib/fy-accel.c",
-        "src/lib/fy-atom.c",
-        "src/lib/fy-composer.c",
-        "src/lib/fy-diag.c",
-        "src/lib/fy-doc.c",
-        "src/lib/fy-docbuilder.c",
-        "src/lib/fy-docstate.c",
-        "src/lib/fy-dump.c",
-        "src/lib/fy-emit.c",
-        "src/lib/fy-event.c",
-        "src/lib/fy-input.c",
-        "src/lib/fy-parse.c",
-        "src/lib/fy-path.c",
-        "src/lib/fy-token.c",
-        "src/lib/fy-types.c",
-        "src/lib/fy-walk.c",
-        "src/util/fy-blob.c",
-        "src/util/fy-ctype.c",
-        "src/util/fy-utf8.c",
-        "src/util/fy-utils.c",
-        "src/xxhash/xxhash.c",
-    };
-    for (libfyaml_c_files) |c_file| {
-        const path = std.fs.path.join(
-            b.allocator, &.{ libfyaml_dir, c_file })
-            catch unreachable;
-        exe.addCSourceFile(.{ .file = .{ .path = path },
-            .flags = &libfyaml_cflags });
-    }
+    exe.addCSourceFile(.{ .file = .{ .path = tomlc99_dir ++ "toml.c" },
+        .flags = &tomlc99_cflags });
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

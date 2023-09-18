@@ -1,9 +1,11 @@
 const std = @import("std");
 const ziglua = @import("ziglua");
 
-const yaml = @cImport({
-    @cInclude("libfyaml.h");
+const c = @cImport({
+    @cInclude("errno.h");
+    @cInclude("toml.h");
     @cInclude("stdio.h");
+    @cInclude("string.h");
 });
 
 const Allocator = std.mem.Allocator;
@@ -98,15 +100,33 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    try stdout.print("Yaml version {s}\n", .{yaml.fy_library_version()});
     try stdout.print("Args: {s}\n", .{args});
 
     if (args.len > 1) {
-        const fyd = yaml.fy_document_build_from_file(null, args[1]);
-        const rc = yaml.fy_emit_document_to_fp(fyd, yaml.FYECF_DEFAULT | yaml.FYECF_SORT_KEYS, yaml.stdout);
-        _ = rc;
-    }
+        // Open the file
+        const file = try std.fs.cwd().openFile(args[1], .{});
+        defer file.close();
+        var contents = std.ArrayList(u8).init(allocator);
+        defer contents.deinit();
+        try file.reader().readAllArrayList(&contents, 1_000_000_000);
+        // Null terminate the string
+        try contents.append(0);
 
+        // Parse the file
+        var errbuf: [200]u8 = .{};
+        const doc = c.toml_parse(contents.items.ptr, &errbuf, errbuf.len) orelse {
+            std.debug.print("Cannot parse {s}: {s}", .{args[1], errbuf});
+            std.os.exit(1);
+        };
+        defer c.toml_free(doc);
+
+        // Walk the toml
+        var index: c_int = 0;
+        while (c.toml_key_in(doc, index)) |key| {
+            try stdout.print("Key {d}: {s}\n", .{index, key});
+            index = index + 1;
+        }
+    }
 
     // Run some lua code
     var script_engine = try ScriptEngine.init(allocator);
