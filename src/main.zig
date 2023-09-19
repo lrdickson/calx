@@ -107,15 +107,28 @@ pub fn main() !void {
         try contents.append(0);
 
         // Parse the file
-        var errbuf: [200:0]u8 = .{};
-        var doc = try toml.Table.toml_parse(
-            @ptrCast(contents.items.ptr), &errbuf, errbuf.len);
+        var doc = try toml.Table.toml_parse(@ptrCast(contents.items.ptr));
         defer doc.deinit();
 
         // Walk the toml
         var index: i32 = 0;
         while (doc.key_in(index)) |key| {
             try stdout.print("Key {d}: {s}\n", .{index, key});
+            switch (try doc.value_from_key(key)) {
+                toml.TomlType.toml_string => |value| {
+                    defer toml.string_free(value);
+                    try stdout.print("Value: {s}\n", .{value});
+                },
+                toml.TomlType.toml_bool => |value| {
+                    try stdout.print("Value: {any}\n", .{value});
+                },
+                toml.TomlType.toml_int => |value| {
+                    try stdout.print("Value: {any}\n", .{value});
+                },
+                toml.TomlType.toml_float => |value| {
+                    try stdout.print("Value: {d}\n", .{value});
+                },
+            }
             index = index + 1;
         }
     }
