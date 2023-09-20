@@ -79,6 +79,34 @@ const ScriptEngine = struct {
     }
 };
 
+pub fn walkTomlTable(table: *const toml.Table) !void {
+    // Walk the toml
+    var index: i32 = 0;
+    var stdout = std.io.getStdOut().writer();
+    while (table.key_in(index)) |key| {
+        try stdout.print("Key {d}: {s}\n", .{index, key});
+        switch (table.value_from_key(key)) {
+            toml.TomlType.toml_string => |value| {
+                defer toml.string_free(value);
+                try stdout.print("Value: {s}\n", .{value});
+            },
+            toml.TomlType.toml_bool => |value| {
+                try stdout.print("Value: {any}\n", .{value});
+            },
+            toml.TomlType.toml_int => |value| {
+                try stdout.print("Value: {any}\n", .{value});
+            },
+            toml.TomlType.toml_float => |value| {
+                try stdout.print("Value: {d}\n", .{value});
+            },
+            toml.TomlType.toml_table => |value| {
+                try walkTomlTable(&value);
+            }
+        }
+        index = index + 1;
+    }
+}
+
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     // std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
@@ -109,28 +137,7 @@ pub fn main() !void {
         // Parse the file
         var doc = try toml.Table.toml_parse(@ptrCast(contents.items.ptr));
         defer doc.deinit();
-
-        // Walk the toml
-        var index: i32 = 0;
-        while (doc.key_in(index)) |key| {
-            try stdout.print("Key {d}: {s}\n", .{index, key});
-            switch (try doc.value_from_key(key)) {
-                toml.TomlType.toml_string => |value| {
-                    defer toml.string_free(value);
-                    try stdout.print("Value: {s}\n", .{value});
-                },
-                toml.TomlType.toml_bool => |value| {
-                    try stdout.print("Value: {any}\n", .{value});
-                },
-                toml.TomlType.toml_int => |value| {
-                    try stdout.print("Value: {any}\n", .{value});
-                },
-                toml.TomlType.toml_float => |value| {
-                    try stdout.print("Value: {d}\n", .{value});
-                },
-            }
-            index = index + 1;
-        }
+        try walkTomlTable(&doc);
     }
 
     // Run some lua code
@@ -147,4 +154,22 @@ test "simple test" {
     defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
     try list.append(42);
     try std.testing.expectEqual(@as(i32, 42), list.pop());
+}
+
+test "parse toml" {
+    const doc_string: [:0]const u8 =
+        \\somekey = 5
+        \\asecondkey = """
+        \\This is a multiline string
+        \\Second line"""
+        \\[sometable]
+        \\key3 = 0.14
+        \\boolkey = true
+    ;
+    const doc = try toml.Table.toml_parse(doc_string.ptr);
+    defer doc.deinit();
+
+    if (doc.value_from_key("somekey")) |value| {
+        try std.testing.expect(value.toml_int == 5);
+    } else unreachable;
 }

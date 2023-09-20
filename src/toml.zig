@@ -13,6 +13,7 @@ const TomlTypeTag = enum {
     toml_bool,
     toml_int,
     toml_float,
+    toml_table,
 };
 
 pub const TomlType = union(TomlTypeTag) {
@@ -21,6 +22,7 @@ pub const TomlType = union(TomlTypeTag) {
     toml_bool: bool,
     toml_int: i64,
     toml_float: f64,
+    toml_table: Table,
 
     pub fn deinit(t: TomlType) void {
             switch (t) {
@@ -43,8 +45,12 @@ pub const Table = struct {
         UnknownType,
     };
 
-    pub fn toml_parse(conf: [*:0]u8) !Table {
-        const table = c.toml_parse(conf, &errbuf, errbuf.len) orelse {
+    pub fn deinit(table: *const Table) void {
+        c.toml_free(table.table);
+    }
+
+    pub fn toml_parse(conf: [*:0]const u8) !Table {
+        const table = c.toml_parse(@ptrCast(@constCast(conf)), &errbuf, errbuf.len) orelse {
             return TomlTableError.ParseError;
         };
         return Table{
@@ -52,15 +58,20 @@ pub const Table = struct {
         };
     }
 
-    pub fn key_in(table: *Table, keyidx: i32) ?[*:0]const u8 {
+    pub fn key_in(table: *const Table, keyidx: i32) ?[*:0]const u8 {
         return c.toml_key_in(table.table, @intCast(keyidx));
     }
 
-    pub fn deinit(table: *Table) void {
-        c.toml_free(table.table);
+    pub fn table_in(table: *const Table, key: [*:0]const u8) ?Table {
+        var value = c.toml_table_in(table.table, key) orelse {
+            return null;
+        };
+        return Table{
+            .table = value,
+        };
     }
 
-    pub fn value_from_key(table: *Table, key: [*:0]const u8) !TomlType {
+    pub fn value_from_key(table: *const Table, key: [*:0]const u8) ?TomlType {
         var value = c.toml_string_in(table.table, key);
         if (value.ok != 0) {
             return .{ .toml_string = value.u.s };
@@ -77,9 +88,11 @@ pub const Table = struct {
         if (value.ok != 0) {
             return .{ .toml_float = value.u.d };
         }
-        return TomlTableError.UnknownType;
+        if (table.table_in(key)) |subtable| {
+            return .{ .toml_table = subtable };
+        }
+        return null;
         // c.toml_timestamp_in(tab, key);
-        // c.toml_table_in(tab, key);
         // c.toml_array_in(tab, key);
     }
 };

@@ -77,6 +77,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    unit_tests.linkLibC();
+    unit_tests.addIncludePath(.{ .path = tomlc99_dir });
+    unit_tests.addCSourceFile(.{ .file = .{ .path = tomlc99_dir ++ "toml.c" },
+        .flags = &tomlc99_cflags });
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
