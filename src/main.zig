@@ -79,31 +79,45 @@ const ScriptEngine = struct {
     }
 };
 
-pub fn walkTomlTable(table: *const toml.Table) !void {
+pub fn walkTomlArray(array: *const toml.Array) anyerror!void {
     // Walk the toml
-    var index: i32 = 0;
     var stdout = std.io.getStdOut().writer();
-    while (table.key_in(index)) |key| {
-        try stdout.print("Key {d}: {s}\n", .{index, key});
-        switch (table.value_from_key(key)) {
-            toml.TomlType.toml_string => |value| {
-                defer toml.string_free(value);
-                try stdout.print("Value: {s}\n", .{value});
-            },
-            toml.TomlType.toml_bool => |value| {
-                try stdout.print("Value: {any}\n", .{value});
-            },
-            toml.TomlType.toml_int => |value| {
-                try stdout.print("Value: {any}\n", .{value});
-            },
-            toml.TomlType.toml_float => |value| {
-                try stdout.print("Value: {d}\n", .{value});
-            },
-            toml.TomlType.toml_table => |value| {
-                try walkTomlTable(&value);
-            }
+    var array_iter = array.iter();
+    while (array_iter.next()) |index| {
+        try stdout.print("next index: {d}\n", .{index});
+        if (array.string_at(index)) |value| {
+            defer toml.string_free(value);
+            try stdout.print("Value: {s}\n", .{value});
         }
-        index = index + 1;
+        else if (array.array_at(index)) |value| {
+            try stdout.print("Array found\n", .{});
+            try walkTomlArray(&value);
+        }
+        else if (array.table_at(index)) |value| {
+            try stdout.print("Table found\n", .{});
+            try walkTomlTable(&value);
+        }
+    }
+}
+
+pub fn walkTomlTable(table: *const toml.Table) anyerror!void {
+    // Walk the toml
+    var stdout = std.io.getStdOut().writer();
+    var table_iter = table.iter();
+    while (table_iter.next()) |key| {
+        try stdout.print("next key: {s}\n", .{key});
+        if (table.string_in(key)) |value| {
+            defer toml.string_free(value);
+            try stdout.print("Value: {s}\n", .{value});
+        }
+        else if (table.array_in(key)) |value| {
+            try stdout.print("Array found\n", .{});
+            try walkTomlArray(&value);
+        }
+        else if (table.table_in(key)) |value| {
+            try stdout.print("Table found\n", .{});
+            try walkTomlTable(&value);
+        }
     }
 }
 
