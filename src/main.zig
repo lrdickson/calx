@@ -176,6 +176,7 @@ test "parse toml" {
         \\asecondkey = """
         \\This is a multiline string
         \\Second line"""
+        \\array = [ 1, 2, 3, 4, 5 ]
         \\[sometable]
         \\key3 = 0.14
         \\boolkey = true
@@ -183,7 +184,39 @@ test "parse toml" {
     const doc = try toml.Table.toml_parse(doc_string.ptr);
     defer doc.deinit();
 
-    if (doc.value_from_key("somekey")) |value| {
-        try std.testing.expect(value.toml_int == 5);
+    // Check the parsing results
+    if (doc.int_in("somekey")) |value| {
+        try std.testing.expect(value == 5);
+    } else unreachable;
+    if (doc.string_in("asecondkey")) |value| {
+        const string = value[0..std.mem.len(value)];
+        const result =  std.mem.eql(
+            u8,
+            string,
+            "This is a multiline string\nSecond line");
+        try std.testing.expect(result);
+    } else unreachable;
+
+    if (doc.array_in("array")) |array| {
+        var expected: i64 = 1;
+        var it = array.iter();
+        while (it.next()) |index| {
+            if (array.int_at(index)) |value| {
+                try std.testing.expect(value == expected);
+            } else unreachable;
+            expected = expected + 1;
+        }
+    } else unreachable;
+
+    if (doc.table_in("sometable")) |tab| {
+
+        if (tab.float_in("key3")) |value| {
+            try std.testing.expect(value == 0.14);
+        } else unreachable;
+
+        if (tab.bool_in("boolkey")) |value| {
+            try std.testing.expect(value == true);
+        } else unreachable;
+
     } else unreachable;
 }

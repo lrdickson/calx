@@ -79,6 +79,30 @@ pub const Array = struct {
         return value.u.s;
     }
 
+    pub fn bool_at(array: *const Array, idx: i32) ?bool {
+        var value = c.toml_bool_at(array.array, idx);
+        if (value.ok == 0) {
+            return null;
+        }
+        return value.u.b != 0;
+    }
+
+    pub fn int_at(array: *const Array, idx: i32) ?i64 {
+        var value = c.toml_int_at(array.array, idx);
+        if (value.ok == 0) {
+            return null;
+        }
+        return value.u.i;
+    }
+
+    pub fn float_at(array: *const Array, idx: i32) ?f64 {
+        var value = c.toml_double_at(array.array, idx);
+        if (value.ok == 0) {
+            return null;
+        }
+        return value.u.d;
+    }
+
     pub fn array_at(array: *const Array, idx: i32) ?Array {
         var value = c.toml_array_at(array.array, idx) orelse {
             return null;
@@ -146,6 +170,30 @@ pub const Table = struct {
         return value.u.s;
     }
 
+    pub fn bool_in(table: *const Table, key: [*:0]const u8) ?bool {
+        var value = c.toml_bool_in(table.table, key);
+        if (value.ok == 0) {
+            return null;
+        }
+        return value.u.b != 0;
+    }
+
+    pub fn int_in(table: *const Table, key: [*:0]const u8) ?i64 {
+        var value = c.toml_int_in(table.table, key);
+        if (value.ok == 0) {
+            return null;
+        }
+        return value.u.i;
+    }
+
+    pub fn float_in(table: *const Table, key: [*:0]const u8) ?f64 {
+        var value = c.toml_double_in(table.table, key);
+        if (value.ok == 0) {
+            return null;
+        }
+        return value.u.d;
+    }
+
     pub fn array_in(table: *const Table, key: [*:0]const u8) ?Array {
         var value = c.toml_array_in(table.table, key) orelse {
             return null;
@@ -162,30 +210,6 @@ pub const Table = struct {
         return Table{
             .table = value,
         };
-    }
-
-    pub fn get(table: *const Table, key: [*:0]const u8) ?TomlType {
-        if (table.string_in(key)) |value| {
-            return .{ .toml_string = value };
-        }
-        var value = c.toml_bool_in(table.table, key);
-        if (value.ok != 0) {
-            return .{ .toml_bool = value.u.b != 0 };
-        }
-        value = c.toml_int_in(table.table, key);
-        if (value.ok != 0) {
-            return .{ .toml_int = value.u.i };
-        }
-        value = c.toml_double_in(table.table, key);
-        if (value.ok != 0) {
-            return .{ .toml_float = value.u.d };
-        }
-        if (table.table_in(key)) |subtable| {
-            return .{ .toml_table = subtable };
-        }
-        return null;
-        // c.toml_timestamp_in(tab, key);
-        // c.toml_array_in(tab, key);
     }
 };
 
