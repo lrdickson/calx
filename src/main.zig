@@ -4,9 +4,35 @@ const toml = @import("toml.zig");
 
 const Allocator = std.mem.Allocator;
 
+pub fn getScript(string: []const u8) ?[]const u8 {
+    const lua_marker = "$Lua";
+    if (string.len < lua_marker.len) {
+        return null;
+    }
+    const string_begin = string[0..lua_marker.len];
+    if (!std.mem.eql(u8, string_begin, lua_marker)) {
+        return null;
+    }
+    return string[lua_marker.len..];
+}
+
 const ScriptEngine = struct {
     allocator: Allocator,
     lua: ziglua.Lua,
+
+    pub fn init(allocator: Allocator) !ScriptEngine {
+        // Initialize Lua vm
+        var lua = try ziglua.Lua.init(allocator);
+        lua.openLibs();
+        return ScriptEngine{
+            .allocator = allocator,
+            .lua = lua,
+        };
+    }
+
+    pub fn deinit(self: *ScriptEngine) void {
+        self.lua.deinit();
+    }
 
     pub fn eval(self: *ScriptEngine, str: []const u8) !void {
         // Form a function
@@ -64,62 +90,58 @@ const ScriptEngine = struct {
         }
     }
 
-    pub fn init(allocator: Allocator) !ScriptEngine {
-        // Initialize Lua vm
-        var lua = try ziglua.Lua.init(allocator);
-        lua.openLibs();
-        return ScriptEngine{
-            .allocator = allocator,
-            .lua = lua,
-        };
+    pub fn walkTomlArray(self: *ScriptEngine, array: *const toml.Array) anyerror!void {
+        // Walk the toml
+        var stdout = std.io.getStdOut().writer();
+        var array_iter = array.iter();
+        while (array_iter.next()) |index| {
+            try stdout.print("next index: {d}\n", .{index});
+            if (array.string_at(index)) |value| {
+                defer toml.string_free(value);
+                try stdout.print("Value: {s}\n", .{value});
+                const string = value[0..std.mem.len(value)];
+                if (getScript(string)) |script| {
+                    try self.eval(script);
+                }
+            }
+            else if (array.array_at(index)) |value| {
+                try stdout.print("Array found\n", .{});
+                try self.walkTomlArray(&value);
+            }
+            else if (array.table_at(index)) |value| {
+                try stdout.print("Table found\n", .{});
+                try self.walkTomlTable(&value);
+            }
+        }
     }
 
-    pub fn deinit(self: *ScriptEngine) void {
-        self.lua.deinit();
+    pub fn walkTomlTable(self: *ScriptEngine, table: *const toml.Table) anyerror!void {
+        // Walk the toml
+        var stdout = std.io.getStdOut().writer();
+        var table_iter = table.iter();
+        while (table_iter.next()) |key| {
+            try stdout.print("next key: {s}\n", .{key});
+            if (table.string_in(key)) |value| {
+                defer toml.string_free(value);
+                try stdout.print("Value: {s}\n", .{value});
+                const string = value[0..std.mem.len(value)];
+                if (getScript(string)) |script| {
+                    try self.eval(script);
+                }
+            }
+            else if (table.array_in(key)) |value| {
+                try stdout.print("Array found\n", .{});
+                try self.walkTomlArray(&value);
+            }
+            else if (table.table_in(key)) |value| {
+                try stdout.print("Table found\n", .{});
+                try self.walkTomlTable(&value);
+            }
+        }
     }
+
 };
 
-pub fn walkTomlArray(array: *const toml.Array) anyerror!void {
-    // Walk the toml
-    var stdout = std.io.getStdOut().writer();
-    var array_iter = array.iter();
-    while (array_iter.next()) |index| {
-        try stdout.print("next index: {d}\n", .{index});
-        if (array.string_at(index)) |value| {
-            defer toml.string_free(value);
-            try stdout.print("Value: {s}\n", .{value});
-        }
-        else if (array.array_at(index)) |value| {
-            try stdout.print("Array found\n", .{});
-            try walkTomlArray(&value);
-        }
-        else if (array.table_at(index)) |value| {
-            try stdout.print("Table found\n", .{});
-            try walkTomlTable(&value);
-        }
-    }
-}
-
-pub fn walkTomlTable(table: *const toml.Table) anyerror!void {
-    // Walk the toml
-    var stdout = std.io.getStdOut().writer();
-    var table_iter = table.iter();
-    while (table_iter.next()) |key| {
-        try stdout.print("next key: {s}\n", .{key});
-        if (table.string_in(key)) |value| {
-            defer toml.string_free(value);
-            try stdout.print("Value: {s}\n", .{value});
-        }
-        else if (table.array_in(key)) |value| {
-            try stdout.print("Array found\n", .{});
-            try walkTomlArray(&value);
-        }
-        else if (table.table_in(key)) |value| {
-            try stdout.print("Table found\n", .{});
-            try walkTomlTable(&value);
-        }
-    }
-}
 
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
@@ -138,6 +160,9 @@ pub fn main() !void {
 
     try stdout.print("Args: {s}\n", .{args});
 
+    var script_engine = try ScriptEngine.init(allocator);
+    defer script_engine.deinit();
+
     if (args.len > 1) {
         // Open the file
         const file = try std.fs.cwd().openFile(args[1], .{});
@@ -151,16 +176,8 @@ pub fn main() !void {
         // Parse the file
         var doc = try toml.Table.toml_parse(@ptrCast(contents.items.ptr));
         defer doc.deinit();
-        try walkTomlTable(&doc);
+        try script_engine.walkTomlTable(&doc);
     }
-
-    // Run some lua code
-    var script_engine = try ScriptEngine.init(allocator);
-    defer script_engine.deinit();
-    const lua_code = "return 42, 2, 3.14, true, false, 'hello'";
-    try script_engine.eval(lua_code);
-    try script_engine.eval("return {a = 2}");
-    try script_engine.eval("return true, {42, 2}, 'world'");
 }
 
 test "simple test" {
