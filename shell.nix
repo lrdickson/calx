@@ -3,5 +3,9 @@ let
 in
 { nixpkgs ? import <nixpkgs> {} }:
 with nixpkgs; mkShell {
-  buildInputs = [ unstable.zig unstable.zls ];
+  buildInputs = with pkgs; [
+    unstable.zig
+    unstable.zls
+    cmark # So that I can get man cmake.3
+    ];
 }

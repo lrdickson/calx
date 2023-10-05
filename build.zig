@@ -42,6 +42,43 @@ pub fn build(b: *std.Build) void {
     exe.addCSourceFile(.{ .file = .{ .path = tomlc99_dir ++ "toml.c" },
         .flags = &tomlc99_cflags });
 
+    // Add cmark
+    const cmark_src_dir = "lib/cmark/src/";
+    exe.addIncludePath(.{ .path = cmark_src_dir });
+    const cmark_cflags = [_][]const u8{
+        "-std=c99",
+    };
+    const cmark_src_files = [_][]const u8{
+        "cmark.c",
+        "node.c",
+        "iterator.c",
+        "blocks.c",
+        "inlines.c",
+        "scanners.c",
+        "scanners.re",
+        "utf8.c",
+        "buffer.c",
+        "references.c",
+        "render.c",
+        "man.c",
+        "xml.c",
+        "html.c",
+        "commonmark.c",
+        "latex.c",
+        "houdini_href_e.c",
+        "houdini_html_e.c",
+        "houdini_html_u.c",
+        "cmark_ctype.c",
+    };
+    for (cmark_src_files) |cmark_file| {
+        const path = std.fs.path.join(b.allocator,
+            &.{ cmark_src_dir, cmark_file })
+            catch unreachable;
+        exe.addCSourceFile(.{
+            .file = .{ .path = path },
+            .flags = &cmark_cflags });
+    }
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
